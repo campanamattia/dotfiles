@@ -1,0 +1,31 @@
+vim.keymap.set("n", "<esc>", "<cmd>noh<cr>", { desc = "Remove highlight" })
+vim.keymap.set("t", "<esc>", [[<C-\><C-n>]], { desc = "Unfocus from terminal" })
+vim.keymap.set("n", "zc", "z=1<cr><esc>e", { desc = "Select first spelling alternative" })
+vim.keymap.set("n", "<leader>,", ToggleWrap, { desc = "Toggle text wrap option" })
+vim.keymap.set("n", "<leader>;", ToggleFrame, { desc = "Toggle virtual frame text" })
+
+vim.keymap.set("n", "<leader>m", "mzyyp`zj", { desc = "Duplicate line" })
+vim.keymap.set("v", "<leader>m", "y`>p`[v`]", { desc = "Duplicate selection" })
+
+vim.keymap.set("v", "<C-j>", ":m '>+1<cr>gv=gv", { desc = "Move selected text down" })
+vim.keymap.set("v", "<C-k>", ":m '<-2<cr>gv=gv", { desc = "Move selected text up" })
+
+vim.keymap.set("v", ">", ">gv", { desc = "Indent visual block" })
+vim.keymap.set("v", "<", "<gv", { desc = "Unindent visual block" })
+
+vim.keymap.set("n", "L", "G$zz", { desc = "Last file char" })
+vim.keymap.set("n", "H", "gg0zz", { desc = "First file char" })
+
+vim.keymap.set("n", "<C-d>", "<C-d>zz", { desc = "Scroll down half page" })
+vim.keymap.set("n", "<C-u>", "<C-u>zz", { desc = "Scroll up half page" })
+
+vim.keymap.set("n", "J", "mzJ`z", { desc = "Append next line" })
+vim.keymap.set("n", "n", "nzz", { desc = "Next match" })
+vim.keymap.set("n", "N", "Nzz", { desc = "Previous match" })
+
+vim.keymap.set("n", "<C-p>", "<cmd>cprev<cr>", { desc = "Previous quickfix match" })
+vim.keymap.set("n", "<C-n>", "<cmd>cnext<cr>", { desc = "Next quickfix match" })
+vim.keymap.set("n", "<leader>o", ToggleQuickfix, { desc = "Toggle quickfix" })
+
+vim.keymap.set("n", ",", "mzo<esc>`z", { desc = "New line after" })
+vim.keymap.set("n", ";", "mzO<esc>`z", { desc = "New line before" })

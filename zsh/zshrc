@@ -1,0 +1,8 @@
+# Homebrew (Apple Silicon)
+[[ -x /opt/homebrew/bin/brew ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
+
+source "$HOME/.config/zsh/prompt"
+source "$HOME/.config/zsh/aliases"
+source "$HOME/.config/zsh/functions"
+[[ -f "$HOME/.config/zsh/local" ]] && source "$HOME/.config/zsh/local"
+

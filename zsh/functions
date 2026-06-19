@@ -1,0 +1,442 @@
+v() {
+  [[ $# -eq 0 ]] && nvim . || nvim "$@"
+}
+
+countloc() {
+  local exclude_ext="webp|ttf|json|png|lock|lockb|svg|jpg|jpeg|gif|ico|pdf|zip|tar|gz|mp3|mp4|woff|woff2|eot"
+  local exclude_dirs=".venv|node_modules|.git|dist|build|coverage|__pycache__|.next|.cache"
+  local force=0
+  local breakdown=0
+  local help=0
+  local languages=()
+  local selected_extensions=()
+  local dir="."  # Default directory is current directory
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --exclude)
+        shift
+        exclude_ext="$1"
+        ;;
+      --exclude-dir)
+        shift
+        exclude_dirs="$1"
+        ;;
+      -f|--force)
+        force=1
+        ;;
+      --breakdown)
+        breakdown=1
+        ;;
+      -l|--language)
+        shift
+        languages+=("$1")
+        ;;
+      -e|--extension)
+        shift
+        selected_extensions+=("$1")
+        ;;
+      -h|--help)
+        help=1
+        ;;
+      -*)
+        echo "❌ Unknown option: $1" >&2
+        help=1
+        ;;
+      *)
+        # Assume it's a directory
+        dir="$1"
+        ;;
+    esac
+    shift
+  done
+
+  # Display help message
+  if [[ $help -eq 1 ]]; then
+    echo "Usage: countloc [OPTIONS] [DIRECTORY]"
+    echo ""
+    echo "Count lines of code in a repository or directory"
+    echo ""
+    echo "Options:"
+    echo "  --exclude PATTERN        Exclude files with extensions matching PATTERN"
+    echo "  --exclude-dir PATTERN    Exclude directories matching PATTERN"
+    echo "  -f, --force              Force counting even if not in a git repository"
+    echo "  --breakdown              Count code and comment lines separately"
+    echo "  -l, --language LANG      Filter by programming language (can be used multiple times)"
+    echo "  -e, --extension EXT      Filter by file extension (can be used multiple times)"
+    echo "  -h, --help               Display this help message"
+    return 0
+  fi
+
+  # Language to extension mapping
+  local lang_extensions=()
+  if [[ ${#languages[@]} -gt 0 ]]; then
+    for lang in "${languages[@]}"; do
+      case "$lang" in
+        javascript|js)
+          lang_extensions+=("js" "jsx" "mjs" "cjs")
+          ;;
+        typescript|ts)
+          lang_extensions+=("ts" "tsx")
+          ;;
+        python|py)
+          lang_extensions+=("py" "pyi" "pyx")
+          ;;
+        ruby|rb)
+          lang_extensions+=("rb" "rake" "gemspec")
+          ;;
+        go)
+          lang_extensions+=("go")
+          ;;
+        rust|rs)
+          lang_extensions+=("rs")
+          ;;
+        java)
+          lang_extensions+=("java")
+          ;;
+        cpp|c++)
+          lang_extensions+=("cpp" "cc" "cxx" "h" "hpp")
+          ;;
+        c)
+          lang_extensions+=("c" "h")
+          ;;
+        # Add more language mappings as needed
+        *)
+          echo "⚠️ Unknown language: $lang" >&2
+          ;;
+      esac
+    done
+  fi
+
+  # Combine language extensions with explicitly selected extensions
+  local extension_filter=""
+  if [[ ${#lang_extensions[@]} -gt 0 || ${#selected_extensions[@]} -gt 0 ]]; then
+    local all_extensions=("${lang_extensions[@]}" "${selected_extensions[@]}")
+    extension_filter="\\.($(IFS="|"; echo "${all_extensions[*]}"))$"
+  fi
+
+  # Select files
+  local files
+  if [[ -d "$dir/.git" ]] && git -C "$dir" rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    files=$(git -C "$dir" ls-files |
+            grep -vE "\.($exclude_ext)$" |
+            grep -vE "^($(echo $exclude_dirs | sed 's/|/|.\//g'))/")
+
+    if [[ -n "$extension_filter" ]]; then
+      files=$(echo "$files" | grep -E "$extension_filter")
+    fi
+
+    # Convert to full paths with directory
+    if [[ "$dir" != "." ]]; then
+      files=$(echo "$files" | sed "s|^|$dir/|")
+    fi
+  elif [[ $force -eq 1 ]]; then
+    echo "⚠️  Not inside a Git repository. Forcing file scan."
+    # Use -not -path instead of grep for better performance
+    local find_cmd="find \"$dir\" -type f"
+
+    # Add exclusion patterns for directories
+    for excl_dir in ${(s:|:)exclude_dirs}; do
+      find_cmd+=" -not -path \"*/$excl_dir/*\""
+    done
+
+    # Add exclusion patterns for file extensions
+    for excl_ext in ${(s:|:)exclude_ext}; do
+      find_cmd+=" -not -name \"*.$excl_ext\""
+    done
+
+    # Add inclusion patterns for extensions if specified
+    if [[ ${#lang_extensions[@]} -gt 0 || ${#selected_extensions[@]} -gt 0 ]]; then
+      find_cmd+=" -and \\( "
+      local first=1
+
+      # Add language extensions
+      for ext in "${lang_extensions[@]}"; do
+        if [[ $first -eq 1 ]]; then
+          find_cmd+=" -name \"*.$ext\""
+          first=0
+        else
+          find_cmd+=" -o -name \"*.$ext\""
+        fi
+      done
+
+      # Add selected extensions
+      for ext in "${selected_extensions[@]}"; do
+        if [[ $first -eq 1 ]]; then
+          find_cmd+=" -name \"*.$ext\""
+          first=0
+        else
+          find_cmd+=" -o -name \"*.$ext\""
+        fi
+      done
+
+      find_cmd+=" \\)"
+    fi
+
+    # Execute the command
+    files=$(eval $find_cmd)
+  else
+    echo "⚠️  Not inside a Git repository. Use -f to force counting." >&2
+    return 1
+  fi
+
+  # Check if any files found
+  if [[ -z "$files" ]]; then
+    echo "⚠️  No matching files found." >&2
+    return 0
+  fi
+
+  # Count number of files
+  local file_count=$(echo "$files" | wc -l | tr -d ' ')
+
+  if [[ $breakdown -eq 1 ]]; then
+    local code=0
+    local comment=0
+    local blank=0
+    local total=0
+
+    # Create associative arrays for per-extension statistics
+    # Use the typeset command to ensure arrays are properly declared
+    typeset -A ext_code
+    typeset -A ext_comment
+    typeset -A ext_blank
+    local extensions=()
+
+    # Performance improvement: process files in batches
+    local batch_size=10
+    local batch_files=()
+    local batch_count=0
+
+    # Start processing time
+    local start_time=$SECONDS
+
+    while IFS= read -r file; do
+      # Check if file exists and is readable
+      if [[ ! -r "$file" ]]; then
+        continue
+      fi
+
+      local ext="${file##*.}"
+      if [[ "$file" == "$ext" ]]; then
+        ext="no_extension"
+      fi
+
+      # Add extension to unique list if not seen before
+      # Using proper zsh associative array initialization
+      if (( ! ${+ext_code[$ext]} )); then
+        extensions+=("$ext")
+        ext_code[$ext]=0
+        ext_comment[$ext]=0
+        ext_blank[$ext]=0
+      fi
+
+      local file_code=0
+      local file_comment=0
+      local file_blank=0
+      local in_multiline_comment=0
+      # Initialize comment types array
+      local comment_types=()
+
+      # Determine comment types based on file extension
+      case "$ext" in
+        py)
+          comment_types=("#" '"""' "'''")
+          ;;
+        js|jsx|ts|tsx|css|java|cpp|cc|c|h|hpp|go|rs|swift)
+          comment_types=("//" "/*" "*/")
+          ;;
+        rb)
+          comment_types=("#" "=begin" "=end")
+          ;;
+        html|xml)
+          comment_types=("<!--" "-->")
+          ;;
+        sh|bash|zsh)
+          comment_types=("#")
+          ;;
+        *)
+          # Default comment markers
+          comment_types=("#" "//" "/*" "*/")
+          ;;
+      esac
+
+      # Don't print debug info
+      # echo "Processing file: $file with extension: $ext"
+
+      local multiline_start=""
+      local multiline_end=""
+
+      # Set multiline comment markers if applicable
+      for ((i=0; i<${#comment_types[@]}; i++)); do
+        if [[ "${comment_types[i]}" == "/*" ]]; then
+          multiline_start="/*"
+          multiline_end="*/"
+        elif [[ "${comment_types[i]}" == '"""' ]]; then
+          multiline_start='"""'
+          multiline_end='"""'
+        elif [[ "${comment_types[i]}" == "'''" ]]; then
+          multiline_start="'''"
+          multiline_end="'''"
+        elif [[ "${comment_types[i]}" == "<!--" ]]; then
+          multiline_start="<!--"
+          multiline_end="-->"
+        elif [[ "${comment_types[i]}" == "=begin" ]]; then
+          multiline_start="=begin"
+          multiline_end="=end"
+        fi
+      done
+
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        local trimmed_line="$(echo "$line" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+
+        if [[ -z "$trimmed_line" ]]; then
+          ((file_blank++))
+          continue
+        fi
+
+        # Handle multiline comments
+        if [[ $in_multiline_comment -eq 1 ]]; then
+          ((file_comment++))
+          if [[ "$trimmed_line" == *"$multiline_end"* ]]; then
+            in_multiline_comment=0
+          fi
+          continue
+        fi
+
+        local is_comment=0
+
+        # Check for multiline comment start
+        if [[ -n "$multiline_start" && "$trimmed_line" == "$multiline_start"* ||
+              "$trimmed_line" == "=begin"* ]]; then
+          ((file_comment++))
+          in_multiline_comment=1
+
+          # Check if multiline comment ends on the same line
+          if [[ "$trimmed_line" == *"$multiline_end"* && "$multiline_end" != "" ]]; then
+            in_multiline_comment=0
+          fi
+          continue
+        fi
+
+        # Check for single-line comments
+        for comment_marker in "${comment_types[@]}"; do
+          # Skip multiline markers
+          if [[ "$comment_marker" == "/*" || "$comment_marker" == "*/" ||
+                "$comment_marker" == '"""' || "$comment_marker" == "'''" ||
+                "$comment_marker" == "<!--" || "$comment_marker" == "-->" ||
+                "$comment_marker" == "=begin" || "$comment_marker" == "=end" ]]; then
+            continue
+          fi
+
+          if [[ "$trimmed_line" == "$comment_marker"* ]]; then
+            ((file_comment++))
+            is_comment=1
+            break
+          fi
+        done
+
+        if [[ $is_comment -eq 0 ]]; then
+          ((file_code++))
+        fi
+      done < "$file"
+
+      # Update totals
+      ext_code[$ext]=$((ext_code[$ext] + file_code))
+      ext_comment[$ext]=$((ext_comment[$ext] + file_comment))
+      ext_blank[$ext]=$((ext_blank[$ext] + file_blank))
+      ((code+=file_code))
+      ((comment+=file_comment))
+      ((blank+=file_blank))
+
+      # Show progress every 10 files
+      ((batch_count++))
+      if (( batch_count % 20 == 0 )); then
+        local elapsed=$(( SECONDS - start_time ))
+        # Clear previous line if not the first update
+        if (( batch_count > 20 )); then
+          echo -ne "\r\033[K"
+        fi
+        echo -ne "⏳ Processing files: $batch_count (${elapsed}s)... "
+      fi
+    done <<< "$files"
+
+    # Clear the progress line
+    if (( batch_count >= 20 )); then
+      echo -ne "\r\033[K"
+    fi
+
+    ((total=code+comment+blank))
+
+    # First show breakdown by extension
+    if [[ ${#extensions[@]} -gt 0 ]]; then
+      echo "📊 Breakdown by Extension"
+      echo "───────────────────────────"
+
+      # Determine the longest extension name for proper padding
+      local max_ext_length=9  # Default minimum for "Extension"
+      for ext in "${extensions[@]}"; do
+        if (( ${#ext} > max_ext_length )); then
+          max_ext_length=${#ext}
+        fi
+      done
+
+      # Add a bit of padding
+      max_ext_length=$((max_ext_length + 2))
+
+      # Print header with dynamic padding
+      printf "%-${max_ext_length}s %8s %8s %8s %8s\n" "Extension" "Code" "Comment" "Blank" "Total"
+      echo "$(printf '%.0s─' {1...$((max_ext_length + 36))})"
+
+      # Sort extensions by total lines
+      local sorted_extensions=()
+      for ext in "${extensions[@]}"; do
+        sorted_extensions+=("$ext")
+      done
+
+      # Use zsh's sorting functionality instead of bubble sort
+      # Create an array of "total extension" strings to sort
+      local ext_totals=()
+      for ext in "${sorted_extensions[@]}"; do
+        local total_lines=$((${ext_code[$ext]:-0} + ${ext_comment[$ext]:-0} + ${ext_blank[$ext]:-0}))
+        ext_totals+=("$total_lines:$ext")
+      done
+
+      # Sort numerically in descending order
+      ext_totals=(${(On)ext_totals})
+
+      # Extract just the extensions back
+      sorted_extensions=()
+      for item in "${ext_totals[@]}"; do
+        sorted_extensions+=("${item#*:}")
+      done
+
+      for ext in "${sorted_extensions[@]}"; do
+        local ext_total=$((${ext_code[$ext]:-0} + ${ext_comment[$ext]:-0} + ${ext_blank[$ext]:-0}))
+        if [[ $ext_total -gt 0 ]]; then
+          printf "%-${max_ext_length}s %8d %8d %8d %8d\n" "$ext" "${ext_code[$ext]:-0}" "${ext_comment[$ext]:-0}" "${ext_blank[$ext]:-0}" "$ext_total"
+        fi
+      done
+
+      # Add a blank line between sections
+      echo ""
+    fi
+
+    # Then show the code statistics summary
+    echo "📊 Code Statistics"
+    echo "───────────────────────────"
+    echo "📝 Code lines    : $code"
+    echo "💬 Comment lines : $comment"
+    echo "⚪ Blank lines   : $blank"
+    echo "📋 Total lines   : $total"
+    echo "📄 Total files   : $file_count"
+  else
+    # Simple count using wc -l
+    # Print individual file counts
+    echo "$files" | xargs wc -l 2>/dev/null | sort -nr | awk 'NR>1'
+    # Add total lines and files count at the end
+    local total_lines=$(echo "$files" | xargs wc -l 2>/dev/null | tail -n 1 | awk '{print $1}')
+    echo "───────────────────────────"
+    echo "📋 Total lines: $total_lines"
+    echo "📄 Total files: $file_count"
+  fi
+}

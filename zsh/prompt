@@ -1,0 +1,58 @@
+#!/bin/zsh
+
+# ---------- Core ----------
+autoload -U compinit
+autoload -Uz vcs_info
+autoload -Uz edit-command-line
+
+setopt prompt_subst
+setopt NULL_GLOB
+setopt INTERACTIVE_COMMENTS
+setopt HIST_IGNORE_SPACE
+setopt RE_MATCH_PCRE
+
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'l:|=* r:|=*'
+zstyle ':completion:*' menu no
+
+compinit
+
+# ---------- Tools ----------
+command -v fzf >/dev/null && eval "$(fzf --zsh)"
+command -v zoxide >/dev/null && eval "$(zoxide init zsh --cmd cd)"
+[[ -f ~/.zsh/fzf-tab/fzf-tab.zsh ]] && source ~/.zsh/fzf-tab/fzf-tab.zsh
+
+export EDITOR=nvim
+bindkey -e
+zle -N edit-command-line
+bindkey '^E' edit-command-line
+
+# ---------- History ----------
+HISTSIZE=5000
+SAVEHIST=5000
+HISTFILE=~/.zsh_history
+setopt appendhistory
+setopt sharehistory
+setopt hist_ignore_all_dups
+
+# ---------- Git ----------
+zstyle ':vcs_info:git:*' formats ' %F{magenta} %b%f'
+
+# ---------- Prompt Behavior ----------
+precmd() {
+  [[ -n "$_prompt_started" ]] && print ""
+  _prompt_started=1
+  vcs_info
+}
+
+# Exit status (only if non-zero)
+exit_status='%(?..%F{red}✘ %?%f )'
+
+# Right prompt (time)
+RPROMPT='%F{8}%*%f'
+
+# Slightly dim HOME, normal elsewhere
+PROMPT='${exit_status}%F{cyan}%~%f${vcs_info_msg_0_}
+%F{green}❯%f '
+
+[[ -f ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+  source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh

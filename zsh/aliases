@@ -1,0 +1,8 @@
+alias ls='ls -G -lh'
+alias la='ls -G -lha'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias c='clear'
+alias g='git'
+alias vim='nvim'
+
