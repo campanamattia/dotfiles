@@ -1,90 +1,80 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
-
-info()    { echo -e "${CYAN}[info]${RESET}  $*"; }
-ok()      { echo -e "${GREEN}[ok]${RESET}    $*"; }
-warn()    { echo -e "${YELLOW}[warn]${RESET}  $*"; }
-section() { echo -e "\n${BOLD}── $* ──${RESET}"; }
+CYAN='\033[0;36m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BOLD='\033[1m'; R='\033[0m'
+info() { echo -e "${CYAN}[info]${R}  $*"; }
+ok()   { echo -e "${GREEN}[ok]${R}    $*"; }
+warn() { echo -e "${YELLOW}[warn]${R}  $*"; }
+section() { echo -e "\n${BOLD}── $* ──${R}"; }
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 if [[ "$DOTFILES_DIR" != "$HOME/.config" ]]; then
-    echo -e "${RED}[error]${RESET} This repo must be cloned into ~/.config"
-    echo "        See README.md for instructions."
+    echo -e "${RED}[error]${R} This repo must be cloned into ~/.config (see README.md)"
     exit 1
 fi
+
+# yes/no prompt; ASSUME_YES=1 or no tty answers yes
+ask() {
+    [[ -n "${ASSUME_YES:-}" || ! -t 0 ]] && return 0
+    local ans
+    read -r -p "  $1 [y/N] " ans
+    [[ "$ans" == [yY]* ]]
+}
 
 # ── package manager ───────────────────────────────────────────────────────────
 section "Package manager"
 
-detect_pm() {
-    if command -v brew   &>/dev/null; then echo brew;   return; fi
-    if command -v apt    &>/dev/null; then echo apt;    return; fi
-    if command -v dnf    &>/dev/null; then echo dnf;    return; fi
-    if command -v pacman &>/dev/null; then echo pacman; return; fi
-    echo none
-}
-
-PM=$(detect_pm)
-if [[ "$PM" == none ]]; then
-    warn "No supported package manager found."
-    echo "Pick one to use for missing packages:"
-    select opt in brew apt dnf pacman "skip (install manually)"; do
-        case $opt in
-            brew|apt|dnf|pacman) PM=$opt ;;
-            *) PM=none ;;
-        esac
-        break
-    done
-else
-    info "Using: ${BOLD}$PM${RESET}"
-fi
+for pm in brew apt-get dnf pacman; do
+    command -v "$pm" &>/dev/null && PM=$pm && break
+done
+PM=${PM:-none}
+[[ "$PM" == none ]] && warn "No supported package manager — missing tools must be installed manually." \
+                    || info "Using: ${BOLD}$PM${R}"
 
 install_pkg() {
-    local name=$1 pkg=${2:-$1}
-    info "Installing $name..."
     case $PM in
-        brew)   brew install "$pkg" ;;
-        apt)    sudo apt install -y "$pkg" ;;
-        dnf)    sudo dnf install -y "$pkg" ;;
-        pacman) sudo pacman -S --noconfirm "$pkg" ;;
-        none)   warn "Skipping $name — install it manually."; return 1 ;;
+        brew)    brew install "$1" ;;
+        apt-get) sudo apt-get install -y "$1" ;;
+        dnf)     sudo dnf install -y "$1" ;;
+        pacman)  sudo pacman -S --noconfirm "$1" ;;
+        none)    return 1 ;;
     esac
 }
 
-# ── required tools ────────────────────────────────────────────────────────────
-section "Required tools"
-
-check_tool() {
-    local tool=$1 pkg=${2:-$1}
-    if command -v "$tool" &>/dev/null; then
-        ok "$tool"
+# need <command> [package] — package defaults to command name
+need() {
+    local cmd=$1 pkg=${2:-$1}
+    if command -v "$cmd" &>/dev/null; then
+        ok "$cmd"
+    elif [[ "$PM" == none ]]; then
+        warn "$cmd not found — install '$pkg' manually"
     else
-        warn "$tool not found"
-        read -r -p "  Install $tool? [y/N] " ans
-        [[ "${ans,,}" == y ]] && install_pkg "$tool" "$pkg" || true
+        warn "$cmd not found"
+        ask "Install $pkg?" && install_pkg "$pkg" || warn "Skipped $cmd"
     fi
 }
 
-check_tool git
-check_tool zsh
-check_tool nvim neovim
-check_tool tmux
+# ── tools ─────────────────────────────────────────────────────────────────────
+section "Tools"
 
-# ghostty is not in standard repos
+need git
+need zsh
+need nvim neovim
+need tmux
+need fzf                 # zsh completion popup, fzf-tab
+need zoxide              # cd replacement in zsh/prompt
+need rg ripgrep          # telescope live_grep
+need make                # telescope-fzf-native, treesitter parsers
+need cc gcc              # treesitter parser compilation
+need node                # mason: ts_ls, pyright
+
 if command -v ghostty &>/dev/null; then
     ok "ghostty"
-else
+elif [[ "$PM" == brew ]]; then
     warn "ghostty not found"
-    if [[ "$PM" == brew ]]; then
-        read -r -p "  Install ghostty? [y/N] " ans
-        [[ "${ans,,}" == y ]] && brew install --cask ghostty || true
-    else
-        warn "Install ghostty manually from: https://ghostty.org/download"
-    fi
+    ask "Install ghostty?" && brew install --cask ghostty || warn "Skipped ghostty"
+else
+    warn "ghostty not found — install from https://ghostty.org/download"
 fi
 
 # ── symlinks ──────────────────────────────────────────────────────────────────
@@ -106,19 +96,27 @@ link() {
 
 link "$DOTFILES_DIR/zsh/zshrc" "$HOME/.zshrc"
 
-# ── tmux plugin manager ───────────────────────────────────────────────────────
-section "Tmux Plugin Manager"
+# ── git-cloned plugins ────────────────────────────────────────────────────────
+section "Plugins"
 
-TPM_DIR="$HOME/.tmux/plugins/tpm"
-if [[ -d "$TPM_DIR" ]]; then
-    ok "TPM already installed"
-else
-    info "Cloning TPM..."
-    git clone https://github.com/tmux-plugins/tpm "$TPM_DIR"
-    ok "TPM installed — open tmux and press prefix + I to install plugins"
-fi
+clone() {
+    local url=$1 dst=$2
+    if [[ -d "$dst/.git" ]]; then
+        ok "$(basename "$dst") already installed"
+    else
+        info "Cloning $(basename "$dst")..."
+        git clone --depth 1 "$url" "$dst" && ok "$(basename "$dst")"
+    fi
+}
+
+# sourced by zsh/prompt
+clone https://github.com/Aloxaf/fzf-tab                        "$HOME/.zsh/fzf-tab"
+clone https://github.com/zsh-users/zsh-syntax-highlighting     "$HOME/.zsh/zsh-syntax-highlighting"
+# run by tmux/plugins.conf
+clone https://github.com/tmux-plugins/tpm                      "$HOME/.tmux/plugins/tpm"
 
 # ── done ──────────────────────────────────────────────────────────────────────
 section "Done"
-info "Neovim plugins install automatically on first launch — just run: nvim"
-ok "Setup complete — restart your shell or run: source ~/.zshrc"
+info "tmux: press prefix + I to install tmux plugins"
+info "nvim: lazy.nvim installs plugins on first launch — just run: nvim"
+ok "Restart your shell or run: source ~/.zshrc"

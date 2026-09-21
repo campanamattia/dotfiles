@@ -1,1 +1,3 @@
 zsh/local
+.DS_Store
+tmux/plugins/

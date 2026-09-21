@@ -15,9 +15,14 @@ chmod +x install.sh
 ```
 
 The script will:
-- Check for required tools (`git`, `zsh`, `nvim`, `tmux`, `ghostty`) and offer to install missing ones
+- Check for required tools and offer to install missing ones via brew/apt/dnf/pacman:
+  `git`, `zsh`, `nvim`, `tmux`, `ghostty`, `fzf`, `zoxide`, `ripgrep`, `make`, `cc`, `node`
 - Symlink `~/.zshrc` → `~/.config/zsh/zshrc` (backing up any existing file)
-- Install [TPM](https://github.com/tmux-plugins/tpm) for tmux plugins
+- Clone the zsh plugins sourced by `zsh/prompt` ([fzf-tab](https://github.com/Aloxaf/fzf-tab),
+  [zsh-syntax-highlighting](https://github.com/zsh-users/zsh-syntax-highlighting)) into `~/.zsh/`
+- Install [TPM](https://github.com/tmux-plugins/tpm) into `~/.tmux/plugins/tpm`
+
+It is idempotent — re-run it any time. Set `ASSUME_YES=1` to install everything without prompting.
 
 After running:
 - Open **tmux** and press `prefix + I` to install tmux plugins
