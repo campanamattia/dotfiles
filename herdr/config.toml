@@ -1,0 +1,67 @@
+onboarding = false
+# herdr — tmux-equivalent setup
+# Validate: herdr config check   |   Reload: herdr server reload-config
+
+[theme]
+name = "nord"
+
+auto_switch = false
+[terminal]
+default_shell = "/bin/zsh"
+new_cwd = "follow"          # tmux: new-window -c "#{pane_current_path}"
+
+[keys]
+prefix = "ctrl+a"           # tmux: set -g prefix C-a
+
+# Panes (tmux: bind | / bind -)
+split_vertical = "prefix+|"
+split_horizontal = "prefix+minus"
+close_pane = "prefix+x"
+zoom = "prefix+z"
+
+# Pane focus — tmux had C-h/j/k/l via vim-tmux-navigator; herdr has no nvim
+# integration, so this is prefix-based and nvim keeps C-hjkl for its own splits.
+focus_pane_left = "prefix+h"
+focus_pane_down = "prefix+j"
+focus_pane_up = "prefix+k"
+focus_pane_right = "prefix+l"
+
+# Resize (tmux: bind -r H/J/K/L resize-pane)
+resize_mode = "prefix+ctrl+r"
+resize_pane_left = "prefix+shift+h"
+resize_pane_down = "prefix+shift+j"
+resize_pane_up = "prefix+shift+k"
+resize_pane_right = "prefix+shift+l"
+
+# Tabs = tmux windows
+new_tab = "prefix+c"
+rename_tab = "prefix+r"
+close_tab = "prefix+ampersand"
+previous_tab = "prefix+p"
+next_tab = "prefix+n"
+switch_tab = "prefix+1..9"
+move_tab_previous = "prefix+shift+left"   # tmux: bind <
+move_tab_next = "prefix+shift+right"      # tmux: bind >
+
+# Session
+detach = "prefix+d"
+toggle_sidebar = "prefix+b"
+
+# Scrollback in $EDITOR — closest thing to tmux vi copy-mode (prefix+Escape).
+# nvim gives you v / V / C-v / y natively, so the vi copy-mode binds are moot.
+edit_scrollback = "prefix+e"
+
+# tmux: bind t display-popup -d "#{pane_current_path}" -E zsh
+[[keys.command]]
+key = "prefix+t"
+type = "popup"
+command = "zsh"
+width = "80%"
+height = "80%"
+
+[ui]
+tab_bar_position = "top"    # tmux: set -g status-position top
+mouse_capture = true        # tmux: set -g mouse on
+copy_on_select = true       # replaces tmux-yank
+pane_outer_borders = false  # tmux-style internal splitters only
+tab_bar_right = [{ type = "datetime" }, { type = "hostname" }]

@@ -1,3 +1,7 @@
 zsh/local
 .DS_Store
-tmux/plugins/
+herdr/*.sock
+herdr/*.log
+herdr/.plugins.lock
+herdr/session.json
+herdr/release-notes.json

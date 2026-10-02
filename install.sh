@@ -60,13 +60,24 @@ section "Tools"
 need git
 need zsh
 need nvim neovim
-need tmux
+# herdr ships via brew; elsewhere use the upstream installer
+if command -v herdr &>/dev/null; then
+    ok "herdr"
+elif [[ "$PM" == brew ]]; then
+    warn "herdr not found"
+    ask "Install herdr?" && brew install herdr || warn "Skipped herdr"
+else
+    warn "herdr not found — install from https://herdr.dev"
+fi
 need fzf                 # zsh completion popup, fzf-tab
 need zoxide              # cd replacement in zsh/prompt
 need rg ripgrep          # telescope live_grep
+need fd                  # telescope find_files
 need make                # telescope-fzf-native, treesitter parsers
-need cc gcc              # treesitter parser compilation
+need cc gcc              # treesitter parsers, blink.cmp
 need node                # mason: ts_ls, pyright
+need curl                # mason downloads, lazy.nvim
+need unzip               # mason package extraction
 
 if command -v ghostty &>/dev/null; then
     ok "ghostty"
@@ -96,6 +107,17 @@ link() {
 
 link "$DOTFILES_DIR/zsh/zshrc" "$HOME/.zshrc"
 
+# ── git ─────────────────────────────────────────────────────────────────────────
+# git reads git/config natively at ~/.config/git/config (XDG), no symlink needed.
+# A stale ~/.gitconfig would shadow it, so retire it.
+section "Git"
+if [[ -f "$HOME/.gitconfig" ]]; then
+    bak="$HOME/.gitconfig.bak.$(date +%Y%m%d%H%M%S)"
+    warn "Backing up ~/.gitconfig → $bak (config lives in git/config now)"
+    mv "$HOME/.gitconfig" "$bak"
+fi
+ok "git/config active at ~/.config/git/config"
+
 # ── git-cloned plugins ────────────────────────────────────────────────────────
 section "Plugins"
 
@@ -112,11 +134,22 @@ clone() {
 # sourced by zsh/prompt
 clone https://github.com/Aloxaf/fzf-tab                        "$HOME/.zsh/fzf-tab"
 clone https://github.com/zsh-users/zsh-syntax-highlighting     "$HOME/.zsh/zsh-syntax-highlighting"
-# run by tmux/plugins.conf
-clone https://github.com/tmux-plugins/tpm                      "$HOME/.tmux/plugins/tpm"
+
+# ── neovim ──────────────────────────────────────────────────────────────────────
+# Install + build all plugins now (fzf-native `make`, blink.cmp, lazy.nvim clone)
+# so the first interactive launch isn't a cold build.
+section "Neovim"
+if command -v nvim &>/dev/null; then
+    info "Syncing plugins (may take a minute)..."
+    nvim --headless "+Lazy! sync" +qa >/dev/null 2>&1 && ok "plugins synced" \
+        || warn "nvim sync had issues — open nvim to finish"
+else
+    warn "nvim not installed — skipping plugin sync"
+fi
 
 # ── done ──────────────────────────────────────────────────────────────────────
 section "Done"
-info "tmux: press prefix + I to install tmux plugins"
-info "nvim: lazy.nvim installs plugins on first launch — just run: nvim"
+command -v herdr &>/dev/null && herdr config check || true
+info "herdr: run 'herdr' to start; config is herdr/config.toml (prefix C-a)"
+info "nvim: treesitter parsers + LSP servers finish installing on first launch"
 ok "Restart your shell or run: source ~/.zshrc"

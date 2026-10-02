@@ -125,13 +125,15 @@
 
 ---
 
-## Tmux navigation
+## Split navigation
 | Key | Action |
 |-----|--------|
-| `<C-h>` | Move to pane / split left |
-| `<C-j>` | Move to pane / split down |
-| `<C-k>` | Move to pane / split up |
-| `<C-l>` | Move to pane / split right |
+| `<C-h>` | Move to split left |
+| `<C-j>` | Move to split down |
+| `<C-k>` | Move to split up |
+| `<C-l>` | Move to split right |
+
+herdr panes are `prefix + h/j/k/l` — see `herdr/CHEATSHEET.md`.
 
 ---
 

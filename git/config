@@ -1,0 +1,62 @@
+# Read natively at ~/.config/git/config (XDG) — no symlink needed.
+
+[user]
+	name = Mattia Campana
+	email = campanamattia@protonmail.com
+
+[init]
+	defaultBranch = main
+
+[core]
+	editor = nvim
+	excludesfile = ~/.config/git/ignore
+
+# ── prettier output (all built-in, no extra tools) ──
+[color]
+	ui = auto
+[column]
+	ui = auto                    # multi-column branch/tag/status listings
+[branch]
+	sort = -committerdate        # recent branches first
+[tag]
+	sort = version:refname       # v1.10 after v1.9, not before
+[diff]
+	algorithm = histogram
+	colorMoved = default         # moved lines in a distinct color
+	mnemonicPrefix = true        # i/ w/ c/ instead of a/ b/
+	renames = true
+[log]
+	date = short
+
+# ── sensible defaults ──
+[push]
+	default = simple
+	autoSetupRemote = true       # no "set upstream" dance on first push
+	followTags = true
+[pull]
+	rebase = true
+[fetch]
+	prune = true                 # drop deleted remote branches
+[merge]
+	conflictstyle = zdiff3
+[rebase]
+	autoStash = true
+	autosquash = true
+[rerere]
+	enabled = true               # remember conflict resolutions
+[commit]
+	verbose = true               # show the diff while writing the message
+[help]
+	autocorrect = prompt
+
+# ── aliases ──
+[alias]
+	st = status -sb
+	co = checkout
+	br = branch
+	sw = switch
+	last = log -1 HEAD --stat
+	unstage = restore --staged
+	amend = commit --amend --no-edit
+	lg = log --graph --abbrev-commit --date=relative \
+	     --format=format:'%C(bold blue)%h%C(reset) %C(dim white)%an%C(reset) %C(green)(%ar)%C(reset)%C(auto)%d%C(reset)%n         %C(white)%s%C(reset)'

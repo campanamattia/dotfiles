@@ -29,3 +29,10 @@ vim.keymap.set("n", "<leader>o", ToggleQuickfix, { desc = "Toggle quickfix" })
 
 vim.keymap.set("n", ",", "mzo<esc>`z", { desc = "New line after" })
 vim.keymap.set("n", ";", "mzO<esc>`z", { desc = "New line before" })
+
+-- Split navigation (was vim-tmux-navigator; herdr has no nvim integration,
+-- its pane focus is prefix+h/j/k/l)
+vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Go to split left" })
+vim.keymap.set("n", "<C-j>", "<C-w>j", { desc = "Go to split down" })
+vim.keymap.set("n", "<C-k>", "<C-w>k", { desc = "Go to split up" })
+vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Go to split right" })
